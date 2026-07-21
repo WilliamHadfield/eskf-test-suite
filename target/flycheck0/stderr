@@ -1,0 +1,60 @@
+   0.590111200s  INFO prepare_target{force=false package_id=eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite) target="eskf_gaunlet_testsuite"}: cargo::core::compiler::fingerprint: fingerprint error for eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("eskf_gaunlet_testsuite", ["lib"], "C:\\Users\\awhru\\Desktop\\eskf_gaunlet_testsuite\\src\\lib.rs", Edition2024) }
+   0.590154000s  INFO prepare_target{force=false package_id=eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite) target="eskf_gaunlet_testsuite"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\awhru\Desktop\eskf_gaunlet_testsuite\target\thumbv7em-none-eabihf\debug\.fingerprint\eskf_gaunlet_testsuite-c472aef3047b6370\test-lib-eskf_gaunlet_testsuite`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_repo
+   6: git_filter_source_repo
+   7: git_filter_source_repo
+   8: git_filter_source_repo
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_libgit2_prerelease
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+   0.602696200s  INFO prepare_target{force=false package_id=eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite) target="eskf_gaunlet_testsuite"}: cargo::core::compiler::fingerprint: fingerprint error for eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite)/Check { test: true }/TargetInner { name: "eskf_gaunlet_testsuite", doc: true, ..: with_path("C:\\Users\\awhru\\Desktop\\eskf_gaunlet_testsuite\\src\\main.rs", Edition2024) }
+   0.602723700s  INFO prepare_target{force=false package_id=eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite) target="eskf_gaunlet_testsuite"}: cargo::core::compiler::fingerprint:     err: failed to read `C:\Users\awhru\Desktop\eskf_gaunlet_testsuite\target\thumbv7em-none-eabihf\debug\.fingerprint\eskf_gaunlet_testsuite-4878d8c07125830a\test-bin-eskf_gaunlet_testsuite`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+
+Stack backtrace:
+   0: git_midx_writer_dump
+   1: git_midx_writer_dump
+   2: git_midx_writer_dump
+   3: git_midx_writer_dump
+   4: git_filter_source_repo
+   5: git_filter_source_repo
+   6: git_filter_source_repo
+   7: git_filter_source_repo
+   8: git_filter_source_repo
+   9: git_filter_source_repo
+  10: git_filter_source_repo
+  11: git_libgit2_prerelease
+  12: <unknown>
+  13: <unknown>
+  14: <unknown>
+  15: <unknown>
+  16: git_midx_writer_dump
+  17: git_filter_source_repo
+  18: git_midx_writer_dump
+  19: BaseThreadInitThunk
+  20: RtlUserThreadStart
+    Checking eskf_gaunlet_testsuite v0.1.0 (C:\Users\awhru\Desktop\eskf_gaunlet_testsuite)
+error: could not compile `eskf_gaunlet_testsuite` (lib test) due to 2 previous errors; 6 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `eskf_gaunlet_testsuite` (bin "eskf_gaunlet_testsuite" test) due to 1 previous error; 16 warnings emitted
