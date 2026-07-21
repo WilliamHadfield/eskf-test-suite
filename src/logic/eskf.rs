@@ -131,6 +131,19 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
      // constructing the quartenion rotation to rotate acceleration from body -> world frame for velocity integeration.
      // 3,4,5,6 = w,x,y,z
 
+     let mut accel_RVec = Rotation_vector::zeros();
+     accel_RVec[0] = true_ax;
+     accel_RVec[1] = true_ay;
+     accel_RVec[2] = true_az;
+    
+    let global_matrix = rotation_m * accel_RVec;
+    let mut dt_vector = Rotation_vector::zeros();
+    dt_vector[0] = dt;
+     dt_vector[1] = dt;
+      dt_vector[2] = dt;
+    
+    let mut gravity_vector = Rotation_vector::zeros();
+    gravity_vector[2] = -9.81;
 
     }
 }
