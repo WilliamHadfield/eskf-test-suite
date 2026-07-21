@@ -41,6 +41,7 @@ https://arxiv.org/pdf/1812.01537v9 - for a bit more flavourful theory.
 */
 
 use nalgebra::*;
+use libm::powf;
 
 const NOM: usize = 13;
 type NominalState = SVector<f32, NOM>;
@@ -77,8 +78,8 @@ struct Noise {
 
 }
 
-
-
+type Rotation_vector = SVector<f32, 3>;
+type Rotation_matrix = SMatrix<f32, 3,3>;
 
 /*
   thinking of the matrix being:
@@ -93,6 +94,7 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
     Self {
     nominal_state: {
         let mut variable_nom = NominalState::zeros();
+        variable_nom[3] = 1.0;
         variable_nom
 
     },
@@ -108,13 +110,28 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
 
     }
 
-    }
-    fn predict (&mut self, imu: ImuMeasVec) {
-    let mut true_ax = imu[0] - self.nominal_state[7];
-     let mut true_ay = imu[1] - self.nominal_state[8];
-      let mut true_az = imu[2] - self.nominal_state[9];
+    } // 0,1,2 vel, 3,4,5,6, quart (3 scalar), 7,8,9 accel b, 10,11,12 rotation b
+    fn predict (&mut self, imu: ImuMeasVec, dt : f32) {
+    let mut true_ax = (imu[0] - self.nominal_state[7]);
+     let mut true_ay = (imu[1] - self.nominal_state[8]);
+      let mut true_az = (imu[2] - self.nominal_state[9]);
+     let mut true_rotation_x = (imu[3] - self.nominal_state[10]) * dt;
+      let mut true_rotation_y = (imu[4] - self.nominal_state[11]) * dt;
+       let mut true_rotation_z = (imu[5] - self.nominal_state[12]) * dt;
+      let mut rotation_m = Rotation_matrix::zeros();
+      rotation_m[(0,0)] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4]  * self.nominal_state[4]  - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
+      rotation_m[(0,1)] = 2.0 * (self.nominal_state[4] * self.nominal_state[5] - self.nominal_state[3] * self.nominal_state[6]);
+      rotation_m[(0,2)] = 2.0 * (self.nominal_state[4] * self.nominal_state[6] + self.nominal_state[3] * self.nominal_state[5]);
+      rotation_m[(1,0)] = 2.0 * (self.nominal_state[4] * self.nominal_state[5] + self.nominal_state[3] * self.nominal_state[6]);
+      rotation_m[(1,1)] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4] * self.nominal_state[4] - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
+      rotation_m[(1,2)] = 2.0 * (self.nominal_state[5] * self.nominal_state[6] - self.nominal_state[3] * self.nominal_state[4]);
+      rotation_m[(2,0)] = 2.0 * (self.nominal_state[4] * self.nominal_state[6] - self.nominal_state[3] * self.nominal_state[5]);
+      rotation_m[(2,1)] = 2.0 * (self.nominal_state[5] * self.nominal_state[6] + self.nominal_state[3] * self.nominal_state[4]);
+      rotation_m[(2,2)] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4] * self.nominal_state[4] - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
+     // constructing the quartenion rotation to rotate acceleration from body -> world frame for velocity integeration.
+     // 3,4,5,6 = w,x,y,z
 
-      
+
     }
 }
 
@@ -128,3 +145,15 @@ impl Noise { // 12x12 matrix:  velocity, orientation or rotation, accel bias, gy
     }
     }
 }
+
+
+
+
+/*
+
+
+
+
+
+
+*/
