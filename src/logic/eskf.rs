@@ -112,12 +112,8 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
 
     } // 0,1,2 vel, 3,4,5,6, quart (3 scalar), 7,8,9 accel b, 10,11,12 rotation b
     fn predict (&mut self, imu: ImuMeasVec, dt : f32) {
-    let mut true_ax = (imu[0] - self.nominal_state[7]);
-     let mut true_ay = (imu[1] - self.nominal_state[8]);
-      let mut true_az = (imu[2] - self.nominal_state[9]);
-     let mut true_rotation_x = (imu[3] - self.nominal_state[10]) * dt;
-      let mut true_rotation_y = (imu[4] - self.nominal_state[11]) * dt;
-       let mut true_rotation_z = (imu[5] - self.nominal_state[12]) * dt;
+    
+
       let mut rotation_m = Rotation_matrix::zeros();
       rotation_m[(0,0)] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4]  * self.nominal_state[4]  - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
       rotation_m[(0,1)] = 2.0 * (self.nominal_state[4] * self.nominal_state[5] - self.nominal_state[3] * self.nominal_state[6]);
@@ -131,19 +127,53 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
      // constructing the quartenion rotation to rotate acceleration from body -> world frame for velocity integeration.
      // 3,4,5,6 = w,x,y,z
 
+     let mut true_ax = (imu[0] - self.nominal_state[7]);
+     let mut true_ay = (imu[1] - self.nominal_state[8]);
+      let mut true_az = (imu[2] - self.nominal_state[9]);
      let mut accel_RVec = Rotation_vector::zeros();
      accel_RVec[0] = true_ax;
      accel_RVec[1] = true_ay;
      accel_RVec[2] = true_az;
     
     let global_matrix = rotation_m * accel_RVec;
-    let mut dt_vector = Rotation_vector::zeros();
-    dt_vector[0] = dt;
-     dt_vector[1] = dt;
-      dt_vector[2] = dt;
     
     let mut gravity_vector = Rotation_vector::zeros();
-    gravity_vector[2] = -9.81;
+    gravity_vector[2] = -9.81; // for now this stays but means i have to tinker with some stuff later.
+    
+    let mut v_change = (global_matrix + gravity_vector) * dt;
+    self.nominal_state[0] += v_change[0];
+      self.nominal_state[1] += v_change[1];
+       self.nominal_state[2] += v_change[2];
+     // pretty self explantory this is just integerating velocity forward, taking our direction to be up or ENU
+
+
+       let mut true_rotation_x = (imu[3] - self.nominal_state[10]) * dt; // rotation vector x , y , z
+      let mut true_rotation_y = (imu[4] - self.nominal_state[11]) * dt;
+       let mut true_rotation_z = (imu[5] - self.nominal_state[12]) * dt;
+    
+    // w & dt = rotation vector or lowercase phi.
+  
+    
+
+
+
+
+
+
+
+
+    // building the skew symmetrix matrix based on 2.3.1
+    
+    let mut skew_symmetric_m = Rotation_matrix::zeros();
+    skew_symmetric_m[(0,1)] = -1 * true_rotation_z;
+     skew_symmetric_m[(0,2)] = 1 * true_rotation_y;
+     skew_symmetric_m[(1,0)] = 1 * true_rotation_z;
+      skew_symmetric_m[(1,2)] = -1 * true_rotation_x;
+      skew_symmetric_m[(2,0)] = -1 * true_rotation_y;
+       skew_symmetric_m[(2,1)] = 1 * true_rotation_x; 
+
+    
+
 
     }
 }
