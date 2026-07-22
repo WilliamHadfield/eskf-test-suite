@@ -41,8 +41,8 @@ https://arxiv.org/pdf/1812.01537v9 - for a bit more flavourful theory.
 */
 
 use nalgebra::*;
-use libm::powf;
-
+use libm::{powf, sqrt};
+use libm::{cos, sin};
 const NOM: usize = 13;
 type NominalState = SVector<f32, NOM>;
 
@@ -80,7 +80,7 @@ struct Noise {
 
 type Rotation_vector = SVector<f32, 3>;
 type Rotation_matrix = SMatrix<f32, 3,3>;
-
+type quartenion_vec = SVector<f32,4>;
 /*
   thinking of the matrix being:
   velocity 3x3
@@ -153,9 +153,42 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
     
     // w & dt = rotation vector or lowercase phi.
   
-    
-   
+    // pythagorous essentially calculating the magnitude of a condesened rotation representing all 3 culmulatively.
+   let angle = sqrt((true_rotation_x * true_rotation_x + true_rotation_y * true_rotation_y + true_rotation_z * true_rotation_z) as f64) as f32;
+     
+     let mut quartenion_vec = quartenion_vec::zeros();
 
+    if angle < 1e-6 {
+    let dq0: f32 = 1.0;
+    let dq1: f32 = true_rotation_x * 0.5;
+    let dq2: f32 = true_rotation_y * 0.5;
+    let dq3: f32 = true_rotation_z * 0.5;
+    quartenion_vec[0] = dq0;
+    quartenion_vec[1] = dq1;
+    quartenion_vec[2] = dq2;
+    quartenion_vec[3] = dq3;
+   } else {
+    let dq0: f32 = cos((angle / 2.0) as f64) as f32;
+    let dq1: f32 = sin((angle / 2.0) as f64) as f32 / angle;
+    let dq2: f32 = sin((angle / 2.0) as f64) as f32 / angle;
+    let dq3: f32 = sin((angle / 2.0) as f64) as f32 / angle;
+    quartenion_vec[0] = dq0;
+    quartenion_vec[1] = dq1;
+    quartenion_vec[2] = dq2;
+    quartenion_vec[3] = dq3;
+   } // little bit clunky but it works.
+
+    // the / angle if for the unit length this is essentially just cos pheta / 2 + u sin (pheta / 2)
+   // to calculate the unit length you need to do phi or the rotation vector / the magnitude of that rotation vector which equals angle in this case.
+   // however i need to do it in this way because each component x y and z CONTRIBUTE to the vector and therefore you need to do it seperately so you get a VECTOR which is your unit "direction"
+   // rather than jsut a scalar value which could be in any direction which isnt helpful.
+  
+
+  // 1.2.2 equation from sola paper or the product equation p x dq
+  let new_q0 = self.nominal_state[3] * quartenion_vec[0] - self.nominal_state[4] * quartenion_vec[1] - self.nominal_state[5] * quartenion_vec[2] - self.nominal_state[6] * quartenion_vec[3];
+  let new_q1 = self.nominal_state[3] *  quartenion_vec[1] + self.nominal_state[4] * quartenion_vec[0] + self.nominal_state[5] * quartenion_vec[3] - self.nominal_state[6] * quartenion_vec[2];
+  let new_q2 = self.nominal_state[3] * quartenion_vec[2] + self.nominal_state[4] * quartenion_vec[3] + self.nominal_state[5] * quartenion_vec[0] + self.nominal_state[6] * quartenion_vec[1];
+  let new_q3 = self.nominal_state[3] * quartenion_vec[3] + self.nominal_state[4] * quartenion_vec[2] - self.nominal_state[5] * quartenion_vec[1] + self.nominal_state[6] * quartenion_vec[0];
 
 
 
