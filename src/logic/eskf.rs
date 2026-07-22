@@ -154,7 +154,7 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
     // w & dt = rotation vector or lowercase phi.
   
     
-
+   
 
 
 
@@ -165,12 +165,12 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
     // building the skew symmetrix matrix based on 2.3.1
     
     let mut skew_symmetric_m = Rotation_matrix::zeros();
-    skew_symmetric_m[(0,1)] = -1 * true_rotation_z;
-     skew_symmetric_m[(0,2)] = 1 * true_rotation_y;
-     skew_symmetric_m[(1,0)] = 1 * true_rotation_z;
-      skew_symmetric_m[(1,2)] = -1 * true_rotation_x;
-      skew_symmetric_m[(2,0)] = -1 * true_rotation_y;
-       skew_symmetric_m[(2,1)] = 1 * true_rotation_x; 
+    skew_symmetric_m[(0,1)] = -1.0 * true_rotation_z;
+     skew_symmetric_m[(0,2)] = 1.0 * true_rotation_y;
+     skew_symmetric_m[(1,0)] = 1.0 * true_rotation_z;
+      skew_symmetric_m[(1,2)] = -1.0 * true_rotation_x;
+      skew_symmetric_m[(2,0)] = -1.0 * true_rotation_y;
+       skew_symmetric_m[(2,1)] = 1.0 * true_rotation_x; 
 
     
 
