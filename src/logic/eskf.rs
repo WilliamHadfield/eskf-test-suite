@@ -110,8 +110,8 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
 
     }
 
-    } // 0,1,2 vel, 3,4,5,6, quart (3 scalar), 7,8,9 accel b, 10,11,12 rotation b
-    fn predict (&mut self, imu: ImuMeasVec, dt : f32) {
+    } // 0,1,2 vel, 3,4,5,6, quart (3 is the scalar quantity), 7,8,9 accel b, 10,11,12 rotation b
+    fn predict (&mut self, imu: ImuMeasVec, dt : f32, noise : Noise) {
     
 
       let mut rotation_m = Rotation_matrix::zeros();
@@ -126,6 +126,7 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
       rotation_m[(2,2)] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4] * self.nominal_state[4] - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
      // constructing the quartenion rotation to rotate acceleration from body -> world frame for velocity integeration.
      // 3,4,5,6 = w,x,y,z
+ // see 2.5 for the quartenion rotation matrix equation used.
 
      let mut true_ax = (imu[0] - self.nominal_state[7]);
      let mut true_ay = (imu[1] - self.nominal_state[8]);
@@ -134,7 +135,7 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
      accel_RVec[0] = true_ax;
      accel_RVec[1] = true_ay;
      accel_RVec[2] = true_az;
-    
+   
     let global_matrix = rotation_m * accel_RVec;
     
     let mut gravity_vector = Rotation_vector::zeros();
@@ -184,28 +185,82 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
    // rather than jsut a scalar value which could be in any direction which isnt helpful.
   
 
-  // 1.2.2 equation from sola paper or the product equation p x dq
+  // 1.2.2 equation from sola paper or the product equation p x dp
   let new_q0 = self.nominal_state[3] * quartenion_vec[0] - self.nominal_state[4] * quartenion_vec[1] - self.nominal_state[5] * quartenion_vec[2] - self.nominal_state[6] * quartenion_vec[3];
   let new_q1 = self.nominal_state[3] *  quartenion_vec[1] + self.nominal_state[4] * quartenion_vec[0] + self.nominal_state[5] * quartenion_vec[3] - self.nominal_state[6] * quartenion_vec[2];
   let new_q2 = self.nominal_state[3] * quartenion_vec[2] + self.nominal_state[4] * quartenion_vec[3] + self.nominal_state[5] * quartenion_vec[0] + self.nominal_state[6] * quartenion_vec[1];
   let new_q3 = self.nominal_state[3] * quartenion_vec[3] + self.nominal_state[4] * quartenion_vec[2] - self.nominal_state[5] * quartenion_vec[1] + self.nominal_state[6] * quartenion_vec[0];
 
+  //  shouldnt need to renormalise because f32 rounding points are tiny and neglible in practice.
+  
+  self.nominal_state[3] = new_q0;
+  self.nominal_state[4] = new_q1;
+   self.nominal_state[5] = new_q2;
+    self.nominal_state[6] = new_q3;
 
 
-
-
+   let mut fx = ErrorCov::zeros();
+   // change in v effect on change in v
+   fx[(0,0)] = 1.0; fx[(1,1)] = 1.0; fx[(2,2)] = 1.0;
+   
+   // change in rotations effect on change in v
+   
 
     // building the skew symmetrix matrix based on 2.3.1
     
     let mut skew_symmetric_m = Rotation_matrix::zeros();
-    skew_symmetric_m[(0,1)] = -1.0 * true_rotation_z;
-     skew_symmetric_m[(0,2)] = 1.0 * true_rotation_y;
-     skew_symmetric_m[(1,0)] = 1.0 * true_rotation_z;
-      skew_symmetric_m[(1,2)] = -1.0 * true_rotation_x;
-      skew_symmetric_m[(2,0)] = -1.0 * true_rotation_y;
-       skew_symmetric_m[(2,1)] = 1.0 * true_rotation_x; 
+    skew_symmetric_m[(0,1)] = -1.0 * true_az;
+     skew_symmetric_m[(0,2)] = 1.0 * true_ay;
+     skew_symmetric_m[(1,0)] = 1.0 * true_az;
+      skew_symmetric_m[(1,2)] = -1.0 * true_ax;
+      skew_symmetric_m[(2,0)] = -1.0 * true_ay;
+       skew_symmetric_m[(2,1)] = 1.0 * true_ax; 
 
+       // 270 fx change in rotation effect on change in velocity.
+    let Dv_rotation = -rotation_m * skew_symmetric_m * dt;
+    fx[(0,3)] =  Dv_rotation[(0,0)]; fx[(0,4)] =  Dv_rotation[(0,1)]; fx[(0,5)] =  Dv_rotation[(0,2)];
+    fx[(1,3)] =  Dv_rotation[(1,0)]; fx[(1,4)] =  Dv_rotation[(1,1)]; fx[(1,5)] =  Dv_rotation[(1,2)];
+    fx[(2,3)] =  Dv_rotation[(2,0)]; fx[(2,4)] =  Dv_rotation[(2,1)]; fx[(2,5)] =  Dv_rotation[(2,2)];
     
+    // velocity effect on acceleration bias
+    let dv_accelb = -rotation_m * dt;
+    fx[(0,6)] = dv_accelb[(0,0)];  fx[(0,7)] = dv_accelb[(0,1)]; fx[(0,8)] = dv_accelb[(0,2)];
+     fx[(1,6)] = dv_accelb[(1,0)];  fx[(1,7)] = dv_accelb[(1,1)];  fx[(1,8)] = dv_accelb[(1,2)];
+      fx[(2,6)] = dv_accelb[(2,0)];  fx[(2,7)] = dv_accelb[(2,1)];  fx[(2,8)] = dv_accelb[(2,2)];
+
+
+      // this matrix is tranposed. reusing the quartenion change we calculated earlier cause it the same then x by the transposed 2.5 R equation, (swap rows and columns)
+    fx[(3,3)] = quartenion_vec[0] * quartenion_vec[0] + quartenion_vec[1] * quartenion_vec[1] + quartenion_vec[2] * quartenion_vec[2] + quartenion_vec[3] * quartenion_vec[3];
+    fx[(3,4)] = 2.0 * (quartenion_vec[1] * quartenion_vec[2] + quartenion_vec[0] * quartenion_vec[3]);
+    fx[(3,5)] = 2.0 * (quartenion_vec[1] * quartenion_vec[3] - quartenion_vec[0] * quartenion_vec[3]);
+    fx[(4,3)] = 2.0 * (quartenion_vec[1] * quartenion_vec[2] - quartenion_vec[0] * quartenion_vec[3]);
+    fx[(4,4)] = quartenion_vec[0] * quartenion_vec[0] - quartenion_vec[1] * quartenion_vec[1] + quartenion_vec[2] * quartenion_vec[2] - quartenion_vec[3] * quartenion_vec[3];
+    fx[(4,5)] = 2.0 * (quartenion_vec[2] * quartenion_vec[3] + quartenion_vec[0] * quartenion_vec[1]);
+    fx[(5,3)] = 2.0 * (quartenion_vec[1] * quartenion_vec[3] + quartenion_vec[0] * quartenion_vec[2]);
+    fx[(5,4)] = 2.0 * (quartenion_vec[2] * quartenion_vec[3] - quartenion_vec[0] * quartenion_vec[1]);
+    fx[(5,5)] = quartenion_vec[0] * quartenion_vec[0] - quartenion_vec[1] * quartenion_vec[1] - quartenion_vec[2] * quartenion_vec[2] + quartenion_vec[3] * quartenion_vec[3];
+      
+    // gyro bias effect on rotation
+    fx[(3,9)] = -1.0 * dt;
+    fx[(4,10)] = -1.0 * dt;
+    fx[(5,11)] = -1.0 * dt;
+    
+    fx[(6,6)] = 1.0;
+    fx[(7,7)] = 1.0;
+    fx[(8,8)] = 1.0;
+    
+    fx[(9,9)] = 1.0;
+    fx[(10,10)] = 1.0;
+    fx[(11,11)] = 1.0;
+
+    let mut fi = ErrorCov::zeros();
+     fi[(0,0)] = 1.0;   fi[(1,1)] = 1.0;   fi[(2,2)] = 1.0;
+      fi[(3,3)] = 1.0;   fi[(4,4)] = 1.0;   fi[(5,5)] = 1.0;
+       fi[(6,6)] = 1.0;   fi[(7,7)] = 1.0;   fi[(8,8)] = 1.0;
+        fi[(9,9)] = 1.0;   fi[(10,10)] = 1.0;   fi[(11,11)] = 1.0;
+
+    self.error_state_covariance = fx * self.error_state_covariance * fx.transpose() + fi * noise.process_noise * fi.transpose();
+
 
 
     }
