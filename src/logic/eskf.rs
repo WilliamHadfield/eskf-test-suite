@@ -39,7 +39,7 @@ https://arxiv.org/pdf/1711.02508 - solas paper for the actual derivation i am us
 https://arxiv.org/pdf/1812.01537v9 - for a bit more flavourful theory.
 
 */
-
+use libm::{asin, atan, acos, atan2};
 use nalgebra::*;
 use libm::{powf, sqrt};
 use libm::{cos, sin};
@@ -60,6 +60,7 @@ type Process_Noise = SMatrix<f32, Procces_Noise, Procces_Noise>;
 type ImuMeasVec = SVector<f32,3>;
 
 
+
 struct ESKF {
     nominal_state : NominalState,
 
@@ -77,7 +78,7 @@ struct Noise {
     process_noise : Process_Noise,
 
 }
-
+type MagMeasVec = SVector<f32, 3>;
 type Rotation_vector = SVector<f32, 3>;
 type Rotation_matrix = SMatrix<f32, 3,3>;
 type quartenion_vec = SVector<f32,4>;
@@ -258,13 +259,62 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
       fi[(3,3)] = 1.0;   fi[(4,4)] = 1.0;   fi[(5,5)] = 1.0;
        fi[(6,6)] = 1.0;   fi[(7,7)] = 1.0;   fi[(8,8)] = 1.0;
         fi[(9,9)] = 1.0;   fi[(10,10)] = 1.0;   fi[(11,11)] = 1.0;
+ 
 
+    // i just have a sneaky suspicion this is DEFIENTLY gonna panic the first time i run it lol
     self.error_state_covariance = fx * self.error_state_covariance * fx.transpose() + fi * noise.process_noise * fi.transpose();
+ 
+
+
+    }
+
+    fn correct_mag(&mut self, mag : MagMeasVec, dt : f32) {
+       // step 1 innovation or comparing the measurment with the prediction.
+       // before that i need to apply tilt compensate formula, and extract pitch and roll from quartenions.
+       // the formulas i am using to convert quartenions to pitch and roll come from DCM or the rotation matrix for the ZYX sequence.
+       let pitch = asin(2.0 * (self.nominal_state[4] * self.nominal_state[6] - self.nominal_state[3] - self.nominal_state[5]) as f64) as f32;
+      // atan2 is apparently more accurate according to google and ai yes i used a bit of ai, so what? i aint crawling through research papers looking for quartenion to euler angle conversion LOL
+      // atan2 presevers the direction, fyi look up in the future: why does atan2 give a more accurate representation of roll compared to atan for quartenions rotation to euler angles?
+       let roll = (atan2(2.0 as f64 * ((self.nominal_state[4] * self.nominal_state[6] + self.nominal_state[3] - self.nominal_state[5]) as f64), (1.0 - 2.0 * (self.nominal_state[4] * self.nominal_state[4] + self.nominal_state[5] * self.nominal_state[5])) as f64 ));
+       // tilt compensate formula i once again picked up out of my ass (if this all breaks down well atleast i tried.) 
+       // this formula apparently can level or rotate the frame to level which then can give us a accurate yaw heading which is what all this stuff is really for.
+       let h_x = mag[0] * (cos(pitch as f64) ) as f32 + mag[1] * (sin(roll)) as f32 * (sin(pitch as f64)) as f32 + mag[2] * (sin(pitch as f64)) as f32 * (cos(roll)) as f32;
+       let h_y = mag[1] * (cos(roll )) as f32 - mag[2] * (sin(roll)) as f32;
+
+       // true heading
+       let t_heading  = (atan2(-h_y as f64, h_x as f64) + 0.0) as f32;
+       // declination can stay 0.0 for now but TODO later.
+       let yaw = atan2((2.0 * (self.nominal_state[3] * self.nominal_state[6] + self.nominal_state[4] * self.nominal_state[5])) as f64, (self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4] * self.nominal_state[4] + self.nominal_state[5] * self.nominal_state[5] + self.nominal_state[6] * self.nominal_state[6]) as f64) ;
+       // actually our innovation finally.
+       let mut a = t_heading as f64 - yaw;
+       while a > PI {
+        a-= 2.0 * PI;
+       }
+       while a < -PI {
+        a += 2.0 * PI;
+       }
+      
+      let mut rotation_m = Rotation_vector::zeros();
+      rotation_m[0] = 2.0 * (self.nominal_state[4] * self.nominal_state[6] - self.nominal_state[3] * self.nominal_state[5]);
+      rotation_m[1] = 2.0 * (self.nominal_state[5] * self.nominal_state[6] + self.nominal_state[3] * self.nominal_state[4]);
+      rotation_m[2] = self.nominal_state[3] * self.nominal_state[3] + self.nominal_state[4] * self.nominal_state[4] - self.nominal_state[5] * self.nominal_state[5] - self.nominal_state[6] * self.nominal_state[6];
+      
+      // this is just a temporary measure for now will update at some point probably need to calculate this through a specific mechanism but i just want some ink on the page.
+      // dont really have the time and patience for the proper nitty gritty TODO after the holiday.
+      let R_magno = 0.0;
+     
+     // covariance calculation
+      rotation_m * self.error_state_covariance * rotation_m.transpose() + R_magno;
+
+     
+
 
 
 
     }
+    
 }
+use core::f64::consts::PI;  
 
 impl Noise { // 12x12 matrix:  velocity, orientation or rotation, accel bias, gyro bias.
     fn noise_new() -> Self {
