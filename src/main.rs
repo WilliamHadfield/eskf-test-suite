@@ -18,6 +18,9 @@ use embassy_stm32::time::Hertz;
 use embassy_sync::mutex::Mutex;
 use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_embedded_hal::shared_bus::asynch::i2c::I2cDevice;
+use crate::logic::eskf::fusion_task;
+
+
 use {defmt_rtt as _, panic_probe as _};
 
 
@@ -59,13 +62,18 @@ Timer::after_millis(30).await;
 
     spawner.spawn(mpu_task(i2c_device_mpu).unwrap());
 Timer::after_millis(30).await;
+spawner.spawn(fusion_task().unwrap());
+
+Timer::after_millis(30).await;
+spawner.spawn(ReadAllData().unwrap());
 
 }
 
 #[embassy_executor::task]
 async fn ReadAllData(){
 loop {
-
+ let data_4 = EKF_CHANNEL.receive().await;
+     defmt::info!("ESKF data : {}", data_4);
 Timer::after_millis(80).await;
 }
 }

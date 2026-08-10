@@ -43,6 +43,40 @@ use libm::{asin, atan, acos, atan2};
 use nalgebra::*;
 use libm::{powf, sqrt};
 use libm::{cos, sin};
+use crate::I2C::mpu6050::MPU_CHANNEL_EKF;
+use crate::I2C::mpu6050::ImuData;
+use embassy_time::{Delay,Duration, Instant, Timer};
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::channel::Channel;
+
+impl From<ImuData> for ImuMeasVec {
+    fn from(d : ImuData) -> Self {
+        SVector::from([
+            d.accel_x, d.accel_y, d.accel_z,  d.gyro_x, d.gyro_y, d.gyro_z,
+        ])
+    }
+}
+
+#[derive(defmt::Format)]
+#[derive(Copy, Clone)]
+pub struct ESKFState {
+velocity_x : f32,
+velocity_y: f32,
+velocity_z: f32,
+q_rotations_scalar : f32, // scalar must always be close to or equal to 1
+q_rotations_1 : f32, // i
+q_rotations_2 : f32, // j
+q_rotations_3 : f32, // k
+accel_bias_x : f32,
+accel_bias_y : f32,
+accel_bias_z : f32,
+gyro_bias_x : f32,
+gyro_bias_y : f32,
+gyro_bias_z : f32,
+}
+
+pub static EKF_CHANNEL : Channel<ThreadModeRawMutex, ESKFState, 8> = Channel::new();
+
 const NOM: usize = 13;
 type NominalState = SVector<f32, NOM>;
 
@@ -57,7 +91,7 @@ const Procces_Noise: usize = 12;
 type Process_Noise = SMatrix<f32, Procces_Noise, Procces_Noise>;
 
 
-type ImuMeasVec = SVector<f32,3>;
+type ImuMeasVec = SVector<f32,6>;
 
 
 
@@ -73,7 +107,7 @@ struct ESKF {
 
 // TODO -> decide what to have gps noise as? idk yet
 
-
+#[derive(Copy, Clone)]
 struct Noise {
     process_noise : Process_Noise,
 
@@ -304,7 +338,7 @@ impl ESKF { // honestly TODO -> perhaps experiment with some derive macros for i
       let R_magno = 0.0;
      
      // covariance calculation
-      rotation_m * self.error_state_covariance * rotation_m.transpose() + R_magno;
+    //  rotation_m * self.error_state_covariance * rotation_m.transpose() + R_magno;
 
      
 
@@ -325,6 +359,47 @@ impl Noise { // 12x12 matrix:  velocity, orientation or rotation, accel bias, gy
         },
     }
     }
+}
+
+#[embassy_executor::task]
+pub async fn fusion_task() {
+    let mut last_time = Instant::now();
+let imu_rx = MPU_CHANNEL_EKF.receiver();
+let mut eskf = ESKF::new();
+let mut noise = Noise::noise_new();
+loop {
+
+let now = Instant::now();
+
+let dt = now.duration_since(last_time).as_micros() as f32/1_000_000.0;
+last_time = now;
+
+if let Ok(imu) = imu_rx.try_receive() {
+
+    eskf.predict(imu.into(), dt, noise);
+}
+
+let state = ESKFState {
+velocity_x : eskf.nominal_state[0],
+velocity_y : eskf.nominal_state[1],
+velocity_z : eskf.nominal_state[2],
+q_rotations_scalar : eskf.nominal_state[3], // i said this before but this should be close to one or equal to one
+q_rotations_1 : eskf.nominal_state[4],
+q_rotations_2 : eskf.nominal_state[5],
+q_rotations_3 : eskf.nominal_state[6],
+accel_bias_x : eskf.nominal_state[7],
+accel_bias_y : eskf.nominal_state[8],
+accel_bias_z : eskf.nominal_state[9],
+gyro_bias_x : eskf.nominal_state[10],
+gyro_bias_y : eskf.nominal_state[11],
+gyro_bias_z : eskf.nominal_state[12],
+};
+
+
+  Timer::after_millis(15).await;
+let _ = EKF_CHANNEL.sender().try_send(state);
+
+}
 }
 
 
